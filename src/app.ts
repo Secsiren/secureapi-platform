@@ -1,10 +1,17 @@
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import { config } from './config/env';
 import authRoutes from './modules/auth/auth.routes';
+import { globalLimiter } from './middleware/rateLimiter';
 import { ApiResponse } from './types';
 
 const app = express();
+
+// helmet() sets ~14 secure HTTP response headers in one call
+// These protect against clickjacking, MIME sniffing, cross-site scripting, and more
+// Always apply helmet before any routes so every response gets the headers
+app.use(helmet());
 
 app.use(cors({
   origin: config.isProduction ? process.env.ALLOWED_ORIGIN || '*' : '*',
@@ -15,6 +22,10 @@ app.use(cors({
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: false, limit: '10kb' }));
 app.disable('x-powered-by');
+
+// Apply the global rate limiter to every route
+// 100 requests per 15 minutes per IP
+app.use(globalLimiter);
 
 app.get('/health', (_req: Request, res: Response) => {
   const response: ApiResponse = {

@@ -2,11 +2,10 @@ import { Router } from 'express';
 import { body } from 'express-validator';
 import { register, login, getMe, refresh, logout, logoutAll } from './auth.controller';
 import { authGuard } from '../../middleware/authGuard';
+import { authLimiter, refreshLimiter } from '../../middleware/rateLimiter';
 
 const router = Router();
 
-// Validation rules for registration
-// These run before the controller — if they fail, the controller never executes
 const registerValidation = [
   body('email')
     .isEmail()
@@ -29,7 +28,6 @@ const registerValidation = [
     .withMessage('Last name must be between 1 and 100 characters'),
 ];
 
-// Validation rules for login
 const loginValidation = [
   body('email')
     .isEmail()
@@ -40,26 +38,16 @@ const loginValidation = [
     .withMessage('Password is required'),
 ];
 
-// Public routes — no token needed
-// POST /auth/register — create a new account
-router.post('/register', registerValidation, register);
+// authLimiter added to register and login — 10 attempts per 15min per IP
+router.post('/register', authLimiter, registerValidation, register);
+router.post('/login', authLimiter, loginValidation, login);
 
-// POST /auth/login — login with email and password
-router.post('/login', loginValidation, login);
+// refreshLimiter — 30 refreshes per 15min per IP
+router.post('/refresh', refreshLimiter, refresh);
 
-// POST /auth/refresh — get a new access token using a refresh token
-router.post('/refresh', refresh);
-
-// POST /auth/logout — revoke a refresh token
 router.post('/logout', logout);
 
-// Protected routes — authGuard middleware runs first
-// If the JWT is missing or invalid, authGuard returns 401 and the handler never runs
-
-// GET /auth/me — get the currently logged in user's profile
 router.get('/me', authGuard, getMe);
-
-// POST /auth/logout-all — revoke all refresh tokens for this user
 router.post('/logout-all', authGuard, logoutAll);
 
 export default router;
